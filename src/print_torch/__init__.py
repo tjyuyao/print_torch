@@ -1,4 +1,5 @@
 import types
+import numbers
 from argparse import Namespace
 
 import numpy as np
@@ -35,12 +36,17 @@ def set_printoptions(
     )
 
 
-def _brief_ndarray(data, threshold: int):
+def _brief_ndarray(data, threshold: int, array_type="array"):
     if isinstance(data, np.ndarray) and data.size > threshold:
         nanstr = ", hasnan=True" if np.isnan(data).any() else ""
         brief = ", ".join([f"{x:.4g}" for x in data.flatten()[:threshold].tolist()])
         brief = f"[{brief}, ... ]"
-        brief = f"array(shape={data.shape}, dtype={data.dtype}, min={np.min(data):.4g}, max={np.max(data):4g}, data={brief}{nanstr})"
+        dtype = f"{data.dtype}"
+        if "float" in dtype:
+            std_mean_str = f', std={np.nanstd(data):.4g}, mean={np.nanmean(data):.4g}'
+        else:
+            std_mean_str = ""
+        brief = f"{array_type}(shape={data.shape}, dtype={dtype}, min={np.nanmin(data):.4g}, max={np.nanmax(data):4g}{std_mean_str}, data={brief}{nanstr})"
     else:
         brief = data
     return brief
@@ -55,7 +61,12 @@ def _brief_tensor(data, threshold: int):
         brief = f"[{brief}, ... ]"
         dtype = f"{data.dtype}"
         dtype = dtype[6:] if dtype.startswith("torch.") else dtype
-        brief = f'tensor(shape={tuple(data.shape)}, dtype={dtype}, min={torch.min(data):.4g}, max={torch.max(data):.4g}, data={brief}{nanstr}, device="{data.device}")'
+        if "float" in dtype:
+            _data = data[~data.isnan()]
+            std, mean = torch.std_mean(data[data.isfinite()])
+            brief = f'tensor(shape={tuple(data.shape)}, dtype={dtype}, min={torch.min(_data):.4g}, max={torch.max(_data):.4g}, std={std:.4g}, mean={mean:.4g}, data={brief}{nanstr}, device="{data.device}")'
+        else:
+            brief = f'tensor(shape={tuple(data.shape)}, dtype={dtype}, min={torch.min(data):.4g}, max={torch.max(data):.4g}, data={brief}{nanstr}, device="{data.device}")'
     else:
         brief = data
     return brief
@@ -119,8 +130,11 @@ def print_torch(
             uri = ""
 
     if isinstance(data, (list, tuple)):
-        for i, v in enumerate(data):
-            print_torch(data[i], prefix=prefix, uri=f"{uri}[{i}]")
+        if np.all(isinstance(v, numbers.Number) for v in data):
+            _brief_ndarray(np.array(data), threshold=threshold, array_type=data.__class__.__name__)
+        else:
+            for i, v in enumerate(data):
+                print_torch(data[i], prefix=prefix, uri=f"{uri}[{i}]")
         return
     elif isinstance(data, Mapping):
         for k, v in data.items():
@@ -147,6 +161,8 @@ def print_torch(
         for k, v in vars(data).items():
             print_torch(v, prefix=prefix, uri=f"{uri}.{k}")
         return
+    elif isinstance(data, torch.nn.Module):
+        brief = f"{data.__class__.__name__}(...)"
     else:
         brief = data
     if uri != "" and not uri.endswith(": "):
@@ -156,4 +172,4 @@ def print_torch(
 pt = print_torch
 
 __all__ = ['print_torch', 'pt']
-__version__ = "1.0"
+__version__ = "1.1"
