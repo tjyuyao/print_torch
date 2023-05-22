@@ -172,4 +172,3 @@ def print_torch(
 pt = print_torch
 
 __all__ = ['print_torch', 'pt']
-__version__ = "1.1"
