@@ -131,11 +131,11 @@ def print_torch(
 
     if isinstance(data, (list, tuple)):
         if np.all(isinstance(v, numbers.Number) for v in data):
-            _brief_ndarray(np.array(data), threshold=threshold, array_type=data.__class__.__name__)
+            brief = _brief_ndarray(np.array(data), threshold=threshold, array_type=data.__class__.__name__)
         else:
             for i, v in enumerate(data):
                 print_torch(data[i], prefix=prefix, uri=f"{uri}[{i}]")
-        return
+            return
     elif isinstance(data, Mapping):
         for k, v in data.items():
             if (
